@@ -36,3 +36,15 @@ test('without bytes, the response is checked against itself', async () => {
   assert.equal(result.ok, true);
   assert.deepEqual(result.checks.map((c) => c.name), ['paragraph IDs run p1, p2, p3…', 'contentText is the numbered paragraphs']);
 });
+
+test('the CLI runs when started through a symlink, as npx does', async () => {
+  const { mkdtempSync, symlinkSync } = await import('node:fs');
+  const { execFileSync } = await import('node:child_process');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const link = join(mkdtempSync(join(tmpdir(), 'pfv-')), 'prooffetch-verify');
+  symlinkSync(fileURLToPath(new URL('../verify.mjs', import.meta.url)), link);
+  const out = execFileSync(process.execPath, [link, fileURLToPath(new URL('../examples/example.com.evidence.json', import.meta.url)), fileURLToPath(new URL('../examples/example.com.html', import.meta.url))], { encoding: 'utf8' });
+  assert.match(out, /Verified\./);
+});

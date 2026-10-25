@@ -2,6 +2,7 @@
 // Check a ProofFetch response without trusting ProofFetch: recompute both SHA-256 fingerprints from
 // the page bytes and confirm every numbered paragraph comes from that text, in order.
 import { readFile } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { normalizeText } from './normalize.mjs';
 
@@ -64,6 +65,11 @@ async function main(argv) {
   return ok ? 0 : 1;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+// npx and npm link start the CLI through a symlink, so compare real paths.
+function startedAsCli() {
+  try { return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; }
+}
+
+if (startedAsCli()) {
   main(process.argv.slice(2)).then((code) => { process.exitCode = code; }, (error) => { console.error(String(error?.message || error)); process.exitCode = 2; });
 }

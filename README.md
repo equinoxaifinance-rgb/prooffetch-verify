@@ -13,7 +13,13 @@ This tool recomputes both from the page bytes and confirms that every paragraph,
 
 Needs Node.js 20 or newer. No dependencies.
 
-Clone this repository, then:
+Run it straight from GitHub:
+
+```sh
+npx github:equinoxaifinance-rgb/prooffetch-verify response.json page.html
+```
+
+Or clone this repository, then:
 
 ```sh
 node verify.mjs response.json page.html
