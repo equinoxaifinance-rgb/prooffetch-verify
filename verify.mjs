@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Check a ProofFetch response without trusting ProofFetch: recompute both SHA-256 fingerprints from
 // the page bytes and confirm every numbered paragraph comes from that text, in order.
-import { readFile } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { normalizeText } from './normalize.mjs';
+import { pdfText, isPdf } from './pdf-text.mjs';
 
 export async function sha256Hex(value) {
   const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
@@ -15,10 +16,13 @@ export async function sha256Hex(value) {
 const squash = (s) => s.replace(/\s+/gu, ' ').trim();
 
 // evidence: the parsed JSON ProofFetch returned. bytes: the page's raw bytes (Uint8Array), or null to
-// check only what the response says about itself. Returns { ok, checks: [{ name, ok, detail }] }.
-export async function verifyEvidence(evidence, bytes = null) {
+// check only what the response says about itself. Returns { ok, checks: [{ name, ok, detail, skipped? }] }.
+// For a PDF, the text is recomputed with unpdf (options.unpdf, else an installed unpdf); with none, or
+// options.unpdf null, the text checks are skipped.
+export async function verifyEvidence(evidence, bytes = null, options = {}) {
   const checks = [];
   const add = (name, ok, detail) => checks.push({ name, ok: Boolean(ok), detail });
+  const skip = (name, detail) => checks.push({ name, ok: true, skipped: true, detail });
   const doc = evidence?.document || {};
   const integrity = evidence?.integrity || {};
   const paragraphs = Array.isArray(doc.paragraphs) ? doc.paragraphs : [];
@@ -34,8 +38,22 @@ export async function verifyEvidence(evidence, bytes = null) {
   if (bytes) {
     const raw = await sha256Hex(bytes);
     add('rawSha256 matches the bytes', raw === integrity.rawSha256, raw);
-    const text = new TextDecoder('utf-8').decode(bytes);
-    const normalized = normalizeText(text, evidence?.http?.contentType || 'text/html');
+    let normalized;
+    // the response says whether ProofFetch read these bytes as a PDF (a server can send %PDF- bytes as text/plain)
+    if (doc.pdf) {
+      const extractor = doc.pdf.extractor || 'unpdf';
+      let unpdf = options.unpdf;
+      if (unpdf === undefined) { try { unpdf = await import('unpdf'); } catch { unpdf = null; } }
+      if (!unpdf) {
+        skip('contentSha256 matches the PDF text', `install ${extractor} (npm i ${extractor}) to recompute the text of a PDF`);
+        return { ok: checks.every((c) => c.ok), checks };
+      }
+      add('the bytes are a PDF', isPdf(bytes), 'starts with %PDF-');
+      const pdf = await pdfText(bytes, unpdf, { maxPages: Number(doc.pdf.pagesRead) || 0, maxChars: Infinity });
+      normalized = normalizeText(pdf.text, 'text/plain');
+    } else {
+      normalized = normalizeText(new TextDecoder('utf-8').decode(bytes), evidence?.http?.contentType || 'text/html');
+    }
     const content = await sha256Hex(normalized);
     add('contentSha256 matches the normalized text', content === integrity.contentSha256, content);
     // Paragraphs join the page's lines with spaces and may stop at the requested character limit.
@@ -60,8 +78,9 @@ async function main(argv) {
   const evidence = JSON.parse(await readFile(evidencePath, 'utf8'));
   const bytes = bytesPath ? new Uint8Array(await readFile(bytesPath)) : null;
   const { ok, checks } = await verifyEvidence(evidence, bytes);
-  for (const c of checks) console.log(`${c.ok ? 'PASS' : 'FAIL'}  ${c.name}  (${c.detail})`);
-  console.log(ok ? '\nVerified.' : '\nNot verified.');
+  for (const c of checks) console.log(`${c.skipped ? 'SKIP' : c.ok ? 'PASS' : 'FAIL'}  ${c.name}  (${c.detail})`);
+  const partial = checks.some((c) => c.skipped);
+  console.log(!ok ? '\nNot verified.' : partial ? '\nVerified (raw bytes only; PDF text not checked).' : '\nVerified.');
   return ok ? 0 : 1;
 }
 

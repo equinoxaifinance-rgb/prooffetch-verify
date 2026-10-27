@@ -60,3 +60,7 @@ A pass means the response matches the bytes you gave it. It doesn't show when or
 ## License
 
 MIT. Questions: bryan@steellantern.com.
+
+## PDFs
+
+For a PDF, ProofFetch hashes the PDF's text layer as read by [unpdf](https://www.npmjs.com/package/unpdf), and the response names the exact version in `document.pdf.extractor`. The verifier always checks `rawSha256` against the PDF bytes. To check the text too, install that version next to it (`npm i unpdf@1.8.1`); without it the text checks print `SKIP` and the rest still run. The text extraction is in [`pdf-text.mjs`](pdf-text.mjs).

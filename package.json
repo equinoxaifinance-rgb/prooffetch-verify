@@ -1,12 +1,14 @@
 {
   "name": "prooffetch-verify",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Check a ProofFetch response yourself: recompute both SHA-256 fingerprints and confirm every numbered paragraph came from the page.",
   "type": "module",
   "bin": { "prooffetch-verify": "verify.mjs" },
-  "exports": { ".": "./verify.mjs", "./normalize": "./normalize.mjs" },
-  "files": ["verify.mjs", "normalize.mjs", "README.md", "LICENSE"],
+  "exports": { ".": "./verify.mjs", "./normalize": "./normalize.mjs", "./pdf-text": "./pdf-text.mjs" },
+  "files": ["verify.mjs", "normalize.mjs", "pdf-text.mjs", "README.md", "LICENSE"],
   "scripts": { "test": "node --test" },
   "engines": { "node": ">=20" },
+  "peerDependencies": { "unpdf": "1.8.1" },
+  "peerDependenciesMeta": { "unpdf": { "optional": true } },
   "license": "MIT"
 }
